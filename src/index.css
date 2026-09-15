@@ -1,0 +1,241 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+:root {
+  --carbon-blue-10: #edf5ff;
+  --carbon-blue-20: #d0e2ff;
+  --carbon-blue-60: #0f62fe;
+  --carbon-blue-70: #0043ce;
+  --carbon-blue-80: #002d9c;
+  
+  --carbon-gray-10: #f4f4f4;
+  --carbon-gray-20: #e0e0e0;
+  --carbon-gray-30: #c6c6c6;
+  --carbon-gray-70: #525252;
+  --carbon-gray-80: #393939;
+  --carbon-gray-90: #262626;
+  --carbon-gray-100: #161616;
+
+  --carbon-purple-10: #f6f2ff;
+  --carbon-purple-60: #8a3ffc;
+  --carbon-purple-70: #6929c4;
+
+  --carbon-green-10: #defbe6;
+  --carbon-green-60: #198038;
+  --carbon-green-70: #0e6027;
+
+  --carbon-red-10: #fff1f1;
+  --carbon-red-60: #da1e28;
+  --carbon-red-70: #ba1b23;
+
+  --carbon-amber-10: #fef0be;
+  --carbon-amber-60: #b28600;
+
+  --bg-app: #f4f5f7;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --border-subtle: #e5e7eb;
+  --border-strong: #d1d5db;
+  --text-primary: #161616;
+  --text-secondary: #525252;
+  --text-muted: #6f6f6f;
+}
+
+.dark {
+  --bg-app: #12161f;
+  --bg-surface: #181f2c;
+  --bg-card: #1c2434;
+  --border-subtle: #293447;
+  --border-strong: #3b4b66;
+  --text-primary: #f4f4f4;
+  --text-secondary: #c6c6c6;
+  --text-muted: #8d8d8d;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars for Carbon look and feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c6c6c6;
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #393939;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8d8d8d;
+}
+
+/* Smooth color transitions for theme changes (200-300ms) */
+html:not(.preload) body,
+html:not(.preload) header,
+html:not(.preload) nav,
+html:not(.preload) aside,
+html:not(.preload) main,
+html:not(.preload) section,
+html:not(.preload) article,
+html:not(.preload) div:not(#custom-cursor):not(#custom-cursor *),
+html:not(.preload) button,
+html:not(.preload) input,
+html:not(.preload) select,
+html:not(.preload) textarea,
+html:not(.preload) table,
+html:not(.preload) tr,
+html:not(.preload) td,
+html:not(.preload) th {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 250ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent initial flickering transitions */
+.preload,
+.preload * {
+  transition: none !important;
+}
+
+/* ─── Accessibility & motion standards ─────────────────────────────────────── */
+
+/* Consistent, high-visibility keyboard focus across the entire product */
+*:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Respect OS-level reduced-motion for every animation we ship */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Smooth, subtle route-change animation (applied by page shells) */
+@keyframes cp-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cp-page-enter {
+  animation: cp-page-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-page-enter {
+    animation: none;
+  }
+}
+
+/* Skeleton shimmer utility (used by LoadingSkeleton and page-level states) */
+@keyframes cp-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.cp-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.cp-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+  animation: cp-shimmer 1.4s infinite;
+}
+
+.dark .cp-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.07),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-shimmer::after {
+    animation: none;
+  }
+}
+
+/* Custom Cursor Rules */
+@media (pointer: fine) {
+  html.custom-cursor-enabled,
+  html.custom-cursor-enabled *:not(
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input:not([type]),
+    textarea,
+    [contenteditable="true"],
+    [contenteditable="true"] *,
+    pre,
+    code,
+    .default-cursor,
+    .default-cursor *
+  ) {
+    cursor: none !important;
+  }
+
+  /* Restore native text cursor on text fields, textareas, and code blocks */
+  html.custom-cursor-enabled input[type="text"],
+  html.custom-cursor-enabled input[type="email"],
+  html.custom-cursor-enabled input[type="password"],
+  html.custom-cursor-enabled input[type="search"],
+  html.custom-cursor-enabled input[type="number"],
+  html.custom-cursor-enabled input[type="tel"],
+  html.custom-cursor-enabled input[type="url"],
+  html.custom-cursor-enabled input:not([type]),
+  html.custom-cursor-enabled textarea,
+  html.custom-cursor-enabled [contenteditable="true"],
+  html.custom-cursor-enabled [contenteditable="true"] *,
+  html.custom-cursor-enabled pre,
+  html.custom-cursor-enabled code {
+    cursor: text !important;
+  }
+}
+
+

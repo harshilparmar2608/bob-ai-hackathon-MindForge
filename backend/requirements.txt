@@ -1,0 +1,33 @@
+# CampusPilot Backend — production dependencies
+# Python 3.12+
+
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Data validation & settings
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# Database
+sqlalchemy==2.0.36
+alembic==1.14.0
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+aiosqlite==0.20.0
+greenlet==3.1.1
+
+# Authentication & security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+
+# HTTP client (IBM Granite / external APIs)
+httpx==0.28.1
+
+# Utilities
+python-dotenv==1.0.1
+orjson==3.10.12
+tenacity==9.0.0

@@ -1,0 +1,86 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.*.local
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.cache/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+campuspilot.db
+
+# Logs & runtime
+logs/
+*.log
+*.pid
+tmp/
+temp/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Secrets & credentials
+secrets/
+*.pem
+*.key
+credentials.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Documentation builds
+docs/_build/
+site/

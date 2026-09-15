@@ -1,0 +1,6 @@
+{
+  "name": "CampusPilot",
+  "description": "AI-powered Student Success Copilot built on IBM Carbon Design System principles, empowering students to manage academics, assignments, attendance, study planning, notes, and career preparation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

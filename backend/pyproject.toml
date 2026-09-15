@@ -1,0 +1,150 @@
+[build-system]
+requires = ["setuptools>=75.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "campuspilot-backend"
+version = "0.1.0"
+description = "CampusPilot academic copilot API — FastAPI clean architecture backend"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "CampusPilot Team" }]
+keywords = ["fastapi", "campuspilot", "education", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "python-multipart==0.0.20",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "email-validator==2.2.0",
+    "sqlalchemy==2.0.36",
+    "alembic==1.14.0",
+    "asyncpg==0.30.0",
+    "psycopg2-binary==2.9.10",
+    "aiosqlite==0.20.0",
+    "greenlet==3.1.1",
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.2.1",
+    "httpx==0.28.1",
+    "python-dotenv==1.0.1",
+    "orjson==3.10.12",
+    "tenacity==9.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "ruff==0.8.6",
+    "mypy==1.14.1",
+    "pre-commit==4.0.1",
+    "types-passlib==1.7.7.20241221",
+    "types-python-jose==3.3.4.20240106",
+]
+
+[project.urls]
+Homepage = "https://github.com/campuspilot/campuspilot"
+Documentation = "https://github.com/campuspilot/campuspilot/tree/main/backend"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "ASYNC",
+    "S",   # bandit
+    "RUF",
+]
+ignore = [
+    "S101",  # assert used in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"alembic/**/*.py" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+mypy_path = "."
+packages = ["app"]
+
+[[tool.mypy.overrides]]
+module = ["jose.*", "passlib.*", "alembic.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+    "app/main.py",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 0

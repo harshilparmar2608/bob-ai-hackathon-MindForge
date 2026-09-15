@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campuspilot-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=CampusPilot
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DATABASE_URL=sqlite+aiosqlite:///./campuspilot.db
+      - SECRET_KEY=campuspilot-hackathon-secret-key-production-change-me
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - GRANITE_ENABLED=false
+    volumes:
+      - backend-data:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: campuspilot-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
