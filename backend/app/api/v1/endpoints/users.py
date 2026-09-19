@@ -17,7 +17,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 _ERROR_RESPONSES = {
     status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
     status.HTTP_403_FORBIDDEN: {"model": ErrorResponse},
-    status.HTTP_422_UNPROCESSABLE_ENTITY: {"model": ErrorResponse},
+    422: {"model": ErrorResponse},
 }
 
 

@@ -171,6 +171,132 @@ Always be helpful, concise, and accurate. Use markdown formatting for structured
 When referencing data (attendance, schedules, deadlines), explain your reasoning transparently."""
 
 
+import os
+
+# ─── Live Multi-Model AI Provider Integration ──────────────────────────────────
+
+async def _chat_gemini(
+    messages: list[dict[str, str]],
+    api_key: str,
+    max_tokens: int = 2048,
+    temperature: float = 0.7,
+) -> GraniteChatResponse:
+    """Call Google Gemini API with valid endpoints."""
+    models_to_try = [
+        "gemini-3.6-flash",
+        "gemini-flash-latest",
+    ]
+    
+    contents = []
+    for m in messages:
+        role = "user" if m.get("role") == "user" else "model"
+        contents.append({
+            "role": role,
+            "parts": [{"text": m.get("content", "")}]
+        })
+
+    payload = {
+        "contents": contents,
+        "systemInstruction": {
+            "parts": [{"text": _SYSTEM_PROMPT}]
+        },
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        }
+    }
+
+    last_err = ""
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        for model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            try:
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts)
+                        if text.trim() if hasattr(text, "trim") else text.strip():
+                            logger.info("Gemini model %s responded successfully (%d chars)", model_name, len(text))
+                            return GraniteChatResponse(
+                                model_id=f"google/{model_name}",
+                                choices=[
+                                    GraniteChoice(
+                                        index=0,
+                                        message=GraniteMessage(role="assistant", content=text),
+                                        finish_reason="stop",
+                                    )
+                                ],
+                                usage=GraniteUsage(input_token_count=100, generated_token_count=len(text.split())),
+                            )
+                else:
+                    logger.warning("Gemini endpoint %s status %d: %s", model_name, resp.status_code, resp.text[:150])
+                    last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
+            except Exception as e:
+                logger.warning("Gemini endpoint %s exception: %s", model_name, e)
+                last_err = str(e)
+
+    raise GraniteError(f"All Gemini endpoints failed. Last error: {last_err}")
+
+
+async def _chat_openai_compatible(
+    messages: list[dict[str, str]],
+    api_key: str,
+    base_url: str,
+    model_id: str,
+) -> GraniteChatResponse:
+    """Call an OpenAI-compatible API (Groq, OpenAI, OpenRouter)."""
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    
+    formatted_messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        *[{"role": m["role"], "content": m["content"]} for m in messages]
+    ]
+
+    payload = {
+        "model": model_id,
+        "messages": formatted_messages,
+        "temperature": 0.7,
+        "max_tokens": 1024,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code != 200:
+            logger.error("AI API error %d: %s", resp.status_code, resp.text)
+            raise GraniteError(f"AI Provider error: {resp.status_code} - {resp.text[:200]}")
+        
+        data = resp.json()
+        choices = data.get("choices", [])
+        if not choices:
+            raise GraniteError("No response returned from AI provider")
+        
+        reply_content = choices[0].get("message", {}).get("content", "")
+        usage_data = data.get("usage", {})
+        
+        return GraniteChatResponse(
+            model_id=model_id,
+            choices=[
+                GraniteChoice(
+                    index=0,
+                    message=GraniteMessage(role="assistant", content=reply_content),
+                    finish_reason="stop",
+                )
+            ],
+            usage=GraniteUsage(
+                input_token_count=usage_data.get("prompt_tokens", 100),
+                generated_token_count=usage_data.get("completion_tokens", len(reply_content.split())),
+            ),
+        )
+
+
 async def chat(
     messages: list[dict[str, str]],
     *,
@@ -178,94 +304,101 @@ async def chat(
     temperature: float = 0.7,
 ) -> GraniteChatResponse:
     """
-    Send a chat request to IBM Granite and return the response.
+    Send a chat request to an active AI provider (Primary: Google Gemini API).
 
-    Falls back to a mock response when ``granite_enabled`` is False or when
-    credentials are not configured.
-
-    Parameters
-    ----------
-    messages:
-        List of ``{"role": "user"|"assistant", "content": "..."}`` dicts.
-    max_tokens:
-        Maximum tokens in the completion.
-    temperature:
-        Sampling temperature (0 = deterministic, 1 = creative).
+    Routing Priority:
+    1. Google Gemini -> Primary AI engine (GEMINI_API_KEY / GOOGLE_API_KEY)
+    2. IBM Granite -> watsonx.ai (GRANITE_API_KEY)
+    3. Groq LLaMA 3.3 -> (GROQ_API_KEY)
+    4. OpenAI GPT-4o-mini -> (OPENAI_API_KEY)
+    5. Fallback -> Local development mock mode
     """
-    if not settings.granite_enabled or not settings.granite_api_key:
-        logger.info("Granite disabled or no API key — returning mock response")
-        user_query = next(
-            (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-            "",
-        )
-        # Simulate slight network latency in dev
-        await asyncio.sleep(0.3)
-        return _mock_response(user_query)
-
-    # ── Live path ────────────────────────────────────────────────────────────
-    token = await _fetch_iam_token()
-
-    granite_messages: list[GraniteMessage] = [
-        GraniteMessage(role="system", content=_SYSTEM_PROMPT),
-        *[GraniteMessage(role=m["role"], content=m["content"]) for m in messages],
-    ]
-
-    request_body = GraniteChatRequest(
-        model_id=settings.granite_model_id or "ibm/granite-3-8b-instruct",
-        messages=granite_messages,
-        parameters={
-            "max_new_tokens": max_tokens,
-            "temperature": temperature,
-            "decoding_method": "greedy" if temperature == 0 else "sample",
-        },
-        project_id="",  # set via env if required by your watsonx instance
-    )
-
-    url = f"{settings.granite_api_url.rstrip('/')}/ml/v1/text/chat?version=2024-05-31"
-
-    logger.info(
-        "Sending Granite chat request model_id=%s messages=%d",
-        request_body.model_id,
-        len(granite_messages),
-    )
-
-    async with httpx.AsyncClient(timeout=settings.granite_timeout_seconds) as client:
+    # 1. Primary Model: Google Gemini API
+    gemini_key = settings.gemini_api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    if gemini_key and gemini_key not in ("MY_GEMINI_API_KEY", "your_api_key_here", "change-me"):
         try:
-            resp = await client.post(
-                url,
-                json=request_body.model_dump(exclude_none=True),
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
-            )
-
-            if resp.status_code == 401:
-                raise GraniteAuthError()
-            if resp.status_code == 429:
-                raise GraniteRateLimitError()
-            if resp.status_code >= 500:
-                raise GraniteUnavailableError(
-                    f"Granite service returned HTTP {resp.status_code}"
-                )
-
-            resp.raise_for_status()
-            raw: dict[str, Any] = resp.json()
-            result = GraniteChatResponse.model_validate(raw)
-
-            logger.info(
-                "Granite response received tokens=%d",
-                result.usage.generated_token_count,
-            )
-            return result
-
-        except httpx.TimeoutException as exc:
-            raise GraniteTimeoutError() from exc
-        except httpx.RequestError as exc:
-            raise GraniteUnavailableError(f"Network error reaching Granite: {exc}") from exc
-        except (GraniteError, GraniteAuthError, GraniteRateLimitError):
-            raise
+            logger.info("Routing chat request to Google Gemini API (max_tokens=%d)", max_tokens)
+            return await _chat_gemini(messages, gemini_key, max_tokens=max_tokens, temperature=temperature)
         except Exception as exc:
-            logger.exception("Unexpected Granite error: %s", exc)
-            raise GraniteError(f"Unexpected error: {exc}") from exc
+            logger.warning("Gemini API call failed (%s), retrying after 0.5s...", exc)
+            try:
+                await asyncio.sleep(0.5)
+                return await _chat_gemini(messages, gemini_key, max_tokens=max_tokens, temperature=temperature)
+            except Exception as exc2:
+                logger.error("Gemini API call failed after retry: %s", exc2)
+                raise GraniteError(f"Gemini API request failed: {exc2}") from exc2
+
+    # 2. Secondary Model: IBM Granite / watsonx.ai
+    granite_key = settings.granite_api_key or os.getenv("GRANITE_API_KEY") or ""
+    if granite_key and granite_key not in ("your_api_key_here", "change-me"):
+        try:
+            logger.info("Routing chat request to IBM Granite (watsonx.ai) API")
+            token = await _fetch_iam_token()
+            granite_messages: list[GraniteMessage] = [
+                GraniteMessage(role="system", content=_SYSTEM_PROMPT),
+                *[GraniteMessage(role=m["role"], content=m["content"]) for m in messages],
+            ]
+            request_body = GraniteChatRequest(
+                model_id=settings.granite_model_id or "ibm/granite-3-8b-instruct",
+                messages=granite_messages,
+                parameters={
+                    "max_new_tokens": max_tokens,
+                    "temperature": temperature,
+                    "decoding_method": "greedy" if temperature == 0 else "sample",
+                },
+                project_id=settings.granite_project_id or os.getenv("GRANITE_PROJECT_ID") or "",
+            )
+            base_url = settings.granite_api_url or "https://us-south.ml.cloud.ibm.com"
+            url = f"{base_url.rstrip('/')}/ml/v1/text/chat?version=2024-05-31"
+
+            async with httpx.AsyncClient(timeout=settings.granite_timeout_seconds) as client:
+                resp = await client.post(
+                    url,
+                    json=request_body.model_dump(exclude_none=True),
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                )
+                if resp.status_code == 401:
+                    raise GraniteAuthError()
+                if resp.status_code == 429:
+                    raise GraniteRateLimitError()
+                if resp.status_code >= 500:
+                    raise GraniteUnavailableError(f"IBM Granite HTTP {resp.status_code}")
+
+                resp.raise_for_status()
+                return GraniteChatResponse.model_validate(resp.json())
+        except Exception as exc:
+            logger.warning("IBM Granite API call failed (%s), attempting fallbacks...", exc)
+
+    # 3. Secondary: Groq LLaMA 3.3
+    groq_key = settings.groq_api_key or os.getenv("GROQ_API_KEY") or ""
+    if groq_key and groq_key not in ("your_api_key_here", "change-me"):
+        try:
+            logger.info("Routing chat request to Groq API")
+            return await _chat_openai_compatible(
+                messages, groq_key, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"
+            )
+        except Exception as exc:
+            logger.warning("Groq API call failed (%s), trying fallbacks...", exc)
+
+    # 4. Secondary: OpenAI
+    openai_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY") or ""
+    if openai_key and openai_key not in ("your_api_key_here", "change-me"):
+        try:
+            logger.info("Routing chat request to OpenAI API")
+            return await _chat_openai_compatible(
+                messages, openai_key, "https://api.openai.com/v1", "gpt-4o-mini"
+            )
+        except Exception as exc:
+            logger.warning("OpenAI API call failed (%s), trying fallbacks...", exc)
+
+    # 5. Default dev fallback with dynamic response + setup instructions
+    user_query = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
+    await asyncio.sleep(0.3)
+    return _mock_response(user_query)

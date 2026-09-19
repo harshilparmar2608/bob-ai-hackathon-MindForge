@@ -3,7 +3,6 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "./context/ThemeContext";
-import { CustomCursor } from "./components/common/CustomCursor";
 import { AuthProvider } from "./context/AuthContext";
 import { StudentProvider } from "./context/StudentContext";
 import { AcademicDataProvider } from "./context/AcademicDataContext";
@@ -25,7 +24,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ThemeProvider>
-          <CustomCursor />
           <AuthProvider>
             <StudentProvider>
               <AcademicDataProvider>

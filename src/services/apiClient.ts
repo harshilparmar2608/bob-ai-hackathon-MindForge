@@ -20,8 +20,8 @@ const BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
   "http://localhost:8000/api/v1";
 
-/** 10-second request timeout — prevents silent hangs. */
-const REQUEST_TIMEOUT_MS = 10_000;
+/** 60-second request timeout for AI generation & backend requests. */
+const REQUEST_TIMEOUT_MS = 60_000;
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,

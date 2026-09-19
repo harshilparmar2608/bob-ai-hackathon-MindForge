@@ -21,6 +21,7 @@ import {
 import { MOCK_SMART_RECOMMENDATIONS } from "../services/mockData";
 import { SmartRecommendation } from "../types";
 import { toast } from "sonner";
+import { sendChatMessage, parseAiJson } from "../services/chatService";
 
 // ─── Category configuration ──────────────────────────────────────────────────
 
@@ -284,10 +285,9 @@ const RecCard: React.FC<RecCardProps> = ({ rec, onAction }) => {
 
 export const RecommendationsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [allRecs, setAllRecs] = useState<SmartRecommendation[]>(MOCK_SMART_RECOMMENDATIONS);
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const allRecs = MOCK_SMART_RECOMMENDATIONS;
 
   const filteredRecs =
     activeFilter === "all"
@@ -297,23 +297,59 @@ export const RecommendationsPage: React.FC = () => {
   const criticalCount = allRecs.filter((r) => r.urgency === "critical").length;
   const highCount = allRecs.filter((r) => r.urgency === "high").length;
   const avgConfidence = Math.round(
-    allRecs.reduce((sum, r) => sum + (r.confidenceScore ?? 0), 0) / allRecs.length
+    allRecs.reduce((sum, r) => sum + (r.confidenceScore ?? 0), 0) / (allRecs.length || 1)
   );
 
   const handleAction = (rec: SmartRecommendation) => {
     toast.success("Creating Study Plan", {
-      description: `IBM Granite AI is generating a plan for "${rec.title}".`,
+      description: `Gemini AI is generating a plan for "${rec.title}".`,
     });
     navigate("/planner");
   };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setIsRefreshing(false);
-    toast.success("Recommendations Refreshed", {
-      description: "IBM Granite AI has re-evaluated your academic context.",
-    });
+    try {
+      const prompt = `You are Bob AI Decision Intelligence. Analyze a university student's academic profile (GPA 3.75, CS Major, upcoming exam in Raft Consensus, placement drive in 4 weeks for IBM/Google).
+Return ONLY a valid JSON array containing 4 structured recommendation objects (no markdown, no backticks).
+Each object must have this exact structure:
+[
+  {
+    "id": "rec-gemini-1",
+    "title": "Short title",
+    "category": "attendance" | "exam_prep" | "career" | "academic",
+    "urgency": "critical" | "high" | "medium" | "low",
+    "recommendation": "Detailed actionable recommendation text",
+    "reason": "Clear explanation of why this matters now",
+    "expectedImpact": "Quantitative or concrete expected benefit",
+    "actionLabel": "Button label e.g. Start Prep",
+    "confidenceScore": 95,
+    "confidenceReason": "High correlation with upcoming campus drive criteria",
+    "timestamp": "Just now",
+    "whyThisRecommendation": {
+      "primaryTrigger": "Automated trigger description",
+      "projectedOutcome": "Projected outcome description",
+      "historicalContext": "Historical context",
+      "riskIfIgnored": "Risk description if ignored",
+      "dataSources": ["LMS Analytics", "Attendance Portal", "Career Index"]
+    }
+  }
+]`;
+      const response = await sendChatMessage([{ role: "user", content: prompt }]);
+      const parsed = parseAiJson<SmartRecommendation[]>(response.reply.content);
+
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setAllRecs(parsed);
+        toast.success("Recommendations Refreshed with Live AI!", {
+          description: "Gemini AI re-analyzed your academic status and updated decision insights.",
+        });
+      }
+    } catch (err) {
+      console.error("Refresh recommendations error:", err);
+      toast.error("Could not refresh with live AI, using cached insights.");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const FILTER_TABS = [

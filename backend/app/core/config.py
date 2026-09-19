@@ -59,7 +59,7 @@ class Settings(BaseSettings):
         return os.getenv("APP_ENV", "development")
 
     # CORS
-    cors_origins: list[str] = Field(
+    cors_origins: list[str] | str = Field(
         default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"]
     )
     cors_allow_credentials: bool = True
@@ -75,12 +75,19 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "json"
 
-    # IBM Granite (future)
-    granite_api_url: str = ""
+    # IBM Granite / watsonx.ai (Primary Project AI Engine)
+    granite_api_url: str = "https://us-south.ml.cloud.ibm.com"
     granite_api_key: str = ""
-    granite_model_id: str = ""
+    granite_project_id: str = ""
+    granite_model_id: str = "ibm/granite-3-8b-instruct"
     granite_timeout_seconds: int = 60
-    granite_enabled: bool = False
+    granite_enabled: bool = True
+
+    # Additional AI Models (Gemini, Groq, OpenAI, OpenRouter)
+    gemini_api_key: str = ""
+    groq_api_key: str = ""
+    openai_api_key: str = ""
+    openrouter_api_key: str = ""
 
     # Rate limiting
     rate_limit_enabled: bool = True
@@ -88,15 +95,23 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: object) -> object:
+    def parse_cors_origins(cls, value: object) -> list[str]:
         if isinstance(value, str):
             raw = value.strip()
             if not raw:
                 return []
             if raw.startswith("["):
-                return value
+                import json
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed]
+                except Exception:
+                    pass
             return [origin.strip() for origin in raw.split(",") if origin.strip()]
-        return value
+        if isinstance(value, list):
+            return [str(item).strip() for item in value]
+        return ["http://localhost:5173", "http://localhost:3000"]
 
     @property
     def is_development(self) -> bool:

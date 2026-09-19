@@ -94,7 +94,7 @@ html:not(.preload) aside,
 html:not(.preload) main,
 html:not(.preload) section,
 html:not(.preload) article,
-html:not(.preload) div:not(#custom-cursor):not(#custom-cursor *),
+html:not(.preload) div,
 html:not(.preload) button,
 html:not(.preload) input,
 html:not(.preload) select,
@@ -197,45 +197,6 @@ html:not(.preload) th {
   }
 }
 
-/* Custom Cursor Rules */
-@media (pointer: fine) {
-  html.custom-cursor-enabled,
-  html.custom-cursor-enabled *:not(
-    input[type="text"],
-    input[type="email"],
-    input[type="password"],
-    input[type="search"],
-    input[type="number"],
-    input[type="tel"],
-    input[type="url"],
-    input:not([type]),
-    textarea,
-    [contenteditable="true"],
-    [contenteditable="true"] *,
-    pre,
-    code,
-    .default-cursor,
-    .default-cursor *
-  ) {
-    cursor: none !important;
-  }
 
-  /* Restore native text cursor on text fields, textareas, and code blocks */
-  html.custom-cursor-enabled input[type="text"],
-  html.custom-cursor-enabled input[type="email"],
-  html.custom-cursor-enabled input[type="password"],
-  html.custom-cursor-enabled input[type="search"],
-  html.custom-cursor-enabled input[type="number"],
-  html.custom-cursor-enabled input[type="tel"],
-  html.custom-cursor-enabled input[type="url"],
-  html.custom-cursor-enabled input:not([type]),
-  html.custom-cursor-enabled textarea,
-  html.custom-cursor-enabled [contenteditable="true"],
-  html.custom-cursor-enabled [contenteditable="true"] *,
-  html.custom-cursor-enabled pre,
-  html.custom-cursor-enabled code {
-    cursor: text !important;
-  }
-}
 
 

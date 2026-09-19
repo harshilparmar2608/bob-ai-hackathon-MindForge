@@ -22,7 +22,7 @@ router = APIRouter(prefix="/ai", tags=["AI Assistant"])
 _ERROR_RESPONSES = {
     status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse},
     status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
-    status.HTTP_422_UNPROCESSABLE_ENTITY: {"model": ErrorResponse},
+    422: {"model": ErrorResponse},
     status.HTTP_429_TOO_MANY_REQUESTS: {"model": ErrorResponse},
     status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
     status.HTTP_504_GATEWAY_TIMEOUT: {"model": ErrorResponse},
@@ -71,6 +71,34 @@ async def ai_status(
     current_user: CurrentUser,  # noqa: ARG001
 ) -> AiStatusResponse:
     """Return the current AI service availability and active model identifier."""
+    import os
+    gemini_key = settings.gemini_api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    if gemini_key and gemini_key not in ("MY_GEMINI_API_KEY", "your_api_key_here", "change-me"):
+        return AiStatusResponse(
+            enabled=True,
+            model_id="google/gemini-1.5-flash",
+            status="online",
+            message="Google Gemini 1.5 Flash model is active.",
+        )
+
+    groq_key = settings.groq_api_key or os.getenv("GROQ_API_KEY") or ""
+    if groq_key and groq_key not in ("your_api_key_here", "change-me"):
+        return AiStatusResponse(
+            enabled=True,
+            model_id="groq/llama-3.3-70b-versatile",
+            status="online",
+            message="Groq LLaMA 3.3 model is active.",
+        )
+
+    openai_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY") or ""
+    if openai_key and openai_key not in ("your_api_key_here", "change-me"):
+        return AiStatusResponse(
+            enabled=True,
+            model_id="openai/gpt-4o-mini",
+            status="online",
+            message="OpenAI GPT-4o mini model is active.",
+        )
+
     if settings.granite_enabled and settings.granite_api_key:
         return AiStatusResponse(
             enabled=True,
@@ -78,12 +106,13 @@ async def ai_status(
             status="online",
             message="IBM Granite model is active and responding.",
         )
+
     return AiStatusResponse(
         enabled=False,
         model_id="mock/granite-3-8b-instruct",
         status="mock",
         message=(
-            "Running in mock mode. Set GRANITE_ENABLED=true and GRANITE_API_KEY "
-            "in backend/.env to enable the live IBM Granite model."
+            "Running in mock mode. Add your API key (GEMINI_API_KEY, GROQ_API_KEY, "
+            "OPENAI_API_KEY, or GRANITE_API_KEY) in backend/.env to connect a live AI model."
         ),
     )

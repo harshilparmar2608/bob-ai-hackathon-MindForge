@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useStudent } from "../context/StudentContext";
 import { toast } from "sonner";
+import { sendChatMessage } from "../services/chatService";
 
 interface DreamCompany {
   id: string;
@@ -146,36 +147,64 @@ export const CareerCopilotPage: React.FC = () => {
     },
   ];
 
-  const handleOptimizeBullet = () => {
+  const handleOptimizeBullet = async () => {
     if (!inputBullet.trim()) {
       toast.error("Please enter a resume bullet point to rewrite");
       return;
     }
     setIsOptimizing(true);
-    setTimeout(() => {
-      setIsOptimizing(false);
-      setOptimizedBullet(
-        "Architected an automated multi-tenant study pipeline using IBM Granite 7B and TypeScript, reducing document synthesis latency by 44% and serving 1,400+ active students with 99.2% uptime."
-      );
-      toast.success("Resume Bullet Optimized!", {
-        description: "Applied the Google XYZ impact formula (Accomplished [X] measured by [Y] by doing [Z]).",
+    try {
+      const response = await sendChatMessage([
+        {
+          role: "user",
+          content: `You are an expert tech recruiter and career copilot. Rewrite the following draft resume bullet point using Google's XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]"). 
+Target Role: ${selectedCompany.role} at ${selectedCompany.name}.
+Draft Bullet: "${inputBullet}"
+
+Output ONLY the final optimized bullet point text without quotes or intro text.`,
+        },
+      ]);
+      const resultText = response.reply.content.trim().replace(/^["']|["']$/g, "");
+      setOptimizedBullet(resultText);
+      toast.success("Resume Bullet Optimized with Live AI!", {
+        description: "Applied Google XYZ impact formula using Gemini AI.",
       });
-    }, 800);
+    } catch (err) {
+      console.error("Optimize bullet error:", err);
+      toast.error("Failed to optimize bullet point with AI.");
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
-  const handleEvaluateInterview = () => {
+  const handleEvaluateInterview = async () => {
     if (!userAnswer.trim()) {
       toast.error("Please enter your answer to receive Bob AI feedback");
       return;
     }
     setIsEvaluatingAnswer(true);
-    setTimeout(() => {
+    try {
+      const currentQ = mockQuestions[interviewQuestionIndex];
+      const response = await sendChatMessage([
+        {
+          role: "user",
+          content: `You are a Senior Technical Interviewer evaluating a candidate for ${selectedCompany.name}.
+Interview Topic: ${currentQ.topic}
+Question Asked: "${currentQ.question}"
+Key Criteria: ${currentQ.keyCriteria.join("; ")}
+Candidate's Response: "${userAnswer}"
+
+Provide structured, realistic feedback: grade the answer (e.g., Strong / Moderate / Needs Improvement), highlight strengths, point out any missing technical details, and give an actionable suggestion on how to make it a top-tier answer.`,
+        },
+      ]);
+      setInterviewFeedback(response.reply.content);
+      toast.success("Interview Feedback Generated with Live AI!");
+    } catch (err) {
+      console.error("Evaluate interview error:", err);
+      toast.error("Failed to evaluate answer with AI.");
+    } finally {
       setIsEvaluatingAnswer(false);
-      setInterviewFeedback(
-        "Strong answer! You accurately highlighted that minority partitions cannot achieve a quorum. To make this an L4/Staff answer, explicitly cite that client requests in the minority will either hang or receive timeouts, and contrast with AP systems like DynamoDB."
-      );
-      toast.success("Interview Feedback Generated!");
-    }, 900);
+    }
   };
 
   return (

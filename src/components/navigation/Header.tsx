@@ -93,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-1.5">
-              {greeting}, {displayName.split(" ")[0]} <span className="inline-block animate-bounce">👋</span>
+              {greeting}, {displayName.split(" ")[0]} <span>👋</span>
             </h1>
             <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
               Dean's List Track (GPA {displayGpa})

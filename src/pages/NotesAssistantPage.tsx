@@ -18,6 +18,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sendChatMessage, parseAiJson } from "../services/chatService";
 
 interface NoteTopic {
   id: string;
@@ -270,10 +271,11 @@ const PRESET_TOPICS: NoteTopic[] = [
 ];
 
 export const NotesAssistantPage: React.FC = () => {
+  const [topicsList, setTopicsList] = useState<NoteTopic[]>(PRESET_TOPICS);
   const [selectedTopicId, setSelectedTopicId] = useState<string>(PRESET_TOPICS[0].id);
   const [activeTab, setActiveTab] = useState<"summary" | "flashcards" | "quiz" | "upload">("summary");
 
-  const currentTopic = PRESET_TOPICS.find((t) => t.id === selectedTopicId) || PRESET_TOPICS[0];
+  const currentTopic = topicsList.find((t) => t.id === selectedTopicId) || topicsList[0];
 
   // Flashcards state
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -321,7 +323,7 @@ export const NotesAssistantPage: React.FC = () => {
     setIsQuizSubmitted(false);
   };
 
-  const handleAskBobAI = (e: React.FormEvent) => {
+  const handleAskBobAI = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiQuery.trim()) return;
 
@@ -329,37 +331,173 @@ export const NotesAssistantPage: React.FC = () => {
     const q = aiQuery.trim();
     setAiQuery("");
 
-    setTimeout(() => {
-      let mockReply = "";
-      if (q.toLowerCase().includes("quorum") || q.toLowerCase().includes("raft")) {
-        mockReply =
-          "In Raft, a quorum ensures overlap between any two majorities. Because every majority share at least one node, the most up-to-date log entry is guaranteed to be recognized during election rounds.";
-      } else if (q.toLowerCase().includes("exam") || q.toLowerCase().includes("formula")) {
-        mockReply =
-          "For the exam, professors almost always ask about leader failure scenarios and how split votes are mitigated using randomized timeouts (150-300ms). Be ready to draw the candidate transition diagram!";
-      } else {
-        mockReply = `Based on your course notes for "${currentTopic.title}": The core principle focuses on guaranteeing consistency and low latency under asynchronous network partitions.`;
-      }
-
-      setAiAnswers((prev) => [{ query: q, response: mockReply }, ...prev]);
+    try {
+      const response = await sendChatMessage([
+        {
+          role: "user",
+          content: `You are Bob AI, an expert academic tutor for course "${currentTopic.courseCode}: ${currentTopic.courseName}". Topic: "${currentTopic.title}". Summary context: "${currentTopic.summary.tldr}". Answer the following student question concisely and clearly: "${q}"`,
+        },
+      ]);
+      const aiReply = response.reply.content;
+      setAiAnswers((prev) => [{ query: q, response: aiReply }, ...prev]);
+    } catch (err) {
+      console.error("AI Error:", err);
+      toast.error("Failed to fetch response from Gemini AI");
+    } finally {
       setIsAiAnswering(false);
-    }, 700);
+    }
   };
 
-  const handleProcessCustomNotes = () => {
+  const handleProcessCustomNotes = async () => {
     if (!customText.trim()) {
       toast.error("Please paste lecture notes or an outline to synthesize");
       return;
     }
 
     setIsAnalyzing(true);
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      toast.success("AI Synthesis Complete!", {
-        description: "Generated 5 flashcards, structured takeaways, and exam readiness quiz.",
-      });
+    try {
+      const prompt = `Analyze and synthesize the following lecture notes text:
+"""
+${customText}
+"""
+
+Please respond ONLY with a valid JSON object matching this structure (no markdown formatting, no code block backticks):
+{
+  "title": "A concise title",
+  "courseCode": "NOTE",
+  "courseName": "Custom Subject",
+  "unit": "Unit 1 • AI Synthesis",
+  "readTime": "5 min read",
+  "summary": {
+    "tldr": "2-3 sentence executive summary",
+    "keyPoints": ["Point 1", "Point 2", "Point 3", "Point 4"],
+    "formulas": ["Equation or key rule 1", "Equation or key rule 2"],
+    "examWatchout": "Common exam trap or mistake to watch out for"
+  },
+  "flashcards": [
+    {"id": "fc-1", "question": "Question 1?", "answer": "Answer 1", "category": "Concept"},
+    {"id": "fc-2", "question": "Question 2?", "answer": "Answer 2", "category": "Details"},
+    {"id": "fc-3", "question": "Question 3?", "answer": "Answer 3", "category": "Application"}
+  ],
+  "quiz": [
+    {
+      "id": "q-1",
+      "question": "Practice Quiz Question 1?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctIndex": 0,
+      "explanation": "Why Option A is correct."
+    },
+    {
+      "id": "q-2",
+      "question": "Practice Quiz Question 2?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctIndex": 1,
+      "explanation": "Why Option B is correct."
+    }
+  ]
+}`;
+
+      const response = await sendChatMessage(
+        [{ role: "user", content: prompt }],
+        { maxTokens: 3000 }
+      );
+      let parsed = parseAiJson<any>(response.reply.content);
+
+      // Fallback if LLM output couldn't be parsed strictly as JSON
+      if (!parsed) {
+        const rawContent = response.reply.content;
+        const cleanContent = rawContent
+          .replace(/[\{\}\[\]"]/g, "")
+          .replace(/"?\w+"?:\s*/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const lines = rawContent.split("\n").map((l) => l.trim()).filter(Boolean);
+        const keyPoints = lines
+          .filter((l) => l.startsWith("- ") || l.startsWith("* ") || /^\d+\./.test(l))
+          .map((l) => l.replace(/^[-*\d.]+\s*/, "").replace(/[",]/g, ""))
+          .slice(0, 4);
+
+        const extractedTitle = customText.slice(0, 40).replace(/[\r\n]+/g, " ").trim() || "Synthesized Notes";
+
+        parsed = {
+          title: extractedTitle,
+          courseCode: "NOTE",
+          courseName: "Custom Notes",
+          unit: "Unit 1 • AI Synthesis",
+          readTime: "5 min read",
+          summary: {
+            tldr: cleanContent.slice(0, 250),
+            keyPoints: keyPoints.length > 0 ? keyPoints : ["Key lecture takeaway 1", "Key lecture takeaway 2"],
+            formulas: [],
+            examWatchout: "Review core definitions and main takeaways carefully.",
+          },
+          flashcards: [
+            {
+              id: "fc-fallback-1",
+              question: `What is the primary concept of ${extractedTitle}?`,
+              answer: cleanContent.slice(0, 180),
+              category: "Summary",
+            },
+          ],
+          quiz: [
+            {
+              id: "q-fallback-1",
+              question: "Which concept is emphasized in the uploaded text?",
+              options: [keyPoints[0] || "Main concept", "Alternative concept A", "Alternative concept B", "None of the above"],
+              correctIndex: 0,
+              explanation: "Derived directly from your uploaded lecture text.",
+            },
+          ],
+        };
+      }
+
+      const newTopic: NoteTopic = {
+        id: `custom-${Date.now()}`,
+        courseCode: parsed.courseCode || "NOTE101",
+        courseName: parsed.courseName || "Synthesized Notes",
+        unit: parsed.unit || "Unit 1",
+        title: parsed.title || "Custom AI Synthesized Notes",
+        date: "Just now",
+        readTime: parsed.readTime || "5 min read",
+        summary: parsed.summary || {
+          tldr: customText.slice(0, 200),
+          keyPoints: ["Synthesized using Gemini AI"],
+          formulas: [],
+          examWatchout: "Review synthesized key points carefully.",
+        },
+        flashcards: parsed.flashcards && parsed.flashcards.length > 0 ? parsed.flashcards : [
+          {
+            id: `fc-${Date.now()}`,
+            question: "What is the key takeaway of this note?",
+            answer: customText.slice(0, 150),
+            category: "Core Concept"
+          }
+        ],
+        quiz: parsed.quiz && parsed.quiz.length > 0 ? parsed.quiz : [
+          {
+            id: `q-${Date.now()}`,
+            question: "What is the primary subject of the uploaded material?",
+            options: ["Uploaded Topic", "Option B", "Option C", "Option D"],
+            correctIndex: 0,
+            explanation: "Extracted from uploaded notes."
+          }
+        ],
+      };
+
+      setTopicsList((prev) => [newTopic, ...prev]);
+      setSelectedTopicId(newTopic.id);
       setActiveTab("summary");
-    }, 1200);
+      setCustomText("");
+      toast.success("AI Synthesis Complete!", {
+        description: `Generated ${newTopic.flashcards.length} flashcards and ${newTopic.quiz.length} practice questions using Gemini AI.`,
+      });
+    } catch (err) {
+      console.error("Note synthesis error:", err);
+      toast.error("An error occurred during synthesis. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -390,7 +528,7 @@ export const NotesAssistantPage: React.FC = () => {
 
       {/* Topic Selector Tabs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {PRESET_TOPICS.map((topic) => {
+        {topicsList.map((topic) => {
           const isSelected = topic.id === selectedTopicId;
           return (
             <button
